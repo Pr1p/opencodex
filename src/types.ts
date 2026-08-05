@@ -347,6 +347,18 @@ export interface OcxClaudeCodeConfig {
   visionSidecar?: { backend?: "openai" | "anthropic"; model?: string };
 }
 
+/** Optional Anthropic-compatible endpoint used by `ocx claude --profile <provider>`. */
+export interface OcxClaudeDirectConfig {
+  /** Explicit opt-in; omitted means disabled. */
+  enabled?: boolean;
+  /** Anthropic Messages-compatible base URL. Claude Code appends its own request path. */
+  baseUrl?: string;
+  /** Model id sent to the direct endpoint. */
+  model?: string;
+  /** Which Claude Code credential variable receives the provider API key. */
+  authMode?: "auth-token" | "api-key";
+}
+
 export interface OcxConfig {
   port: number;
   providers: Record<string, OcxProviderConfig>;
@@ -609,6 +621,8 @@ export interface OcxProviderConfig {
    */
   apiKeyPool?: Array<{ id: string; key: string; label?: string; addedAt?: number }>;
   defaultModel?: string;
+  /** Optional Claude Code direct-connection settings; Codex routing ignores this field. */
+  claudeDirect?: OcxClaudeDirectConfig;
   models?: string[];
   /**
    * Fetch the provider's live `/models` endpoint. Defaults to true.

@@ -3,6 +3,7 @@ import type { CatalogModel } from "../codex/catalog";
 import { invalidateCodexModelsCache, nativeModelRows } from "../codex/catalog";
 import {
   DEFAULT_SUBAGENT_MODELS,
+  claudeDirectConfigError,
   codexAutoStartEnabled,
   hasOwnProvider,
   isValidProviderName,
@@ -523,6 +524,12 @@ export async function handleManagementAPI(req: Request, url: URL, config: OcxCon
     return jsonResponse(Object.entries(config.providers).map(([name, p]) => ({
       name, adapter: p.adapter, baseUrl: publicProviderBaseUrl(p.baseUrl), defaultModel: p.defaultModel,
       hasApiKey: !!p.apiKey,
+      claudeDirect: p.claudeDirect ? {
+        enabled: p.claudeDirect.enabled === true,
+        baseUrl: p.claudeDirect.baseUrl ? publicProviderBaseUrl(p.claudeDirect.baseUrl) : undefined,
+        model: p.claudeDirect.model,
+        authMode: p.claudeDirect.authMode,
+      } : undefined,
       allowPrivateNetwork: p.allowPrivateNetwork === true,
       disabled: p.disabled === true,
       codexAccountMode: providerCodexAccountMode(name, p),
@@ -665,11 +672,31 @@ export async function handleManagementAPI(req: Request, url: URL, config: OcxCon
      touched = true;
    }
 
-   if (Object.hasOwn(rawBody, "allowPrivateNetwork")) {
+    if (Object.hasOwn(rawBody, "allowPrivateNetwork")) {
      if (typeof rawBody.allowPrivateNetwork !== "boolean") return jsonResponse({ error: "allowPrivateNetwork must be a boolean" }, 400);
      next.allowPrivateNetwork = rawBody.allowPrivateNetwork;
-     touched = true;
-   }
+      touched = true;
+    }
+
+    if (Object.hasOwn(rawBody, "claudeDirect")) {
+      const rawDirect = rawBody.claudeDirect;
+      if (rawDirect === null) {
+        delete next.claudeDirect;
+      } else {
+        if (!isPlainRecord(rawDirect)) return jsonResponse({ error: "claudeDirect must be a plain object or null" }, 400);
+        const normalizedRawDirect = { ...rawDirect };
+        if (normalizedRawDirect.baseUrl === "") delete normalizedRawDirect.baseUrl;
+        if (normalizedRawDirect.model === "") delete normalizedRawDirect.model;
+        if (normalizedRawDirect.authMode === "") delete normalizedRawDirect.authMode;
+        const directError = claudeDirectConfigError(normalizedRawDirect);
+        if (directError) return jsonResponse({ error: directError }, 400);
+        const direct = { ...(next.claudeDirect ?? {}), ...normalizedRawDirect };
+        const mergedDirectError = claudeDirectConfigError(direct);
+        if (mergedDirectError) return jsonResponse({ error: mergedDirectError }, 400);
+        next.claudeDirect = direct;
+      }
+      touched = true;
+    }
 
     if (!touched) return jsonResponse({ error: "no recognized fields to update" }, 400);
 

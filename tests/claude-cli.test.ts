@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { claudeNotFoundHint } from "../src/cli/claude";
+import { buildClaudeDirectEnv, buildClaudeNativeEnv, claudeNotFoundHint, parseClaudeProfileArgs } from "../src/cli/claude";
 import { commandInvocation } from "../src/lib/win-exec";
 import { buildClaudeEnv } from "../src/cli/claude";
 import type { OcxConfig } from "../src/types";
@@ -14,6 +14,52 @@ function cfg(extra?: Partial<OcxConfig>): OcxConfig {
 }
 
 describe("ocx claude env assembly", () => {
+  test("parses and removes the wrapper profile flag", () => {
+    expect(parseClaudeProfileArgs(["--profile", "deepseek", "--model", "x"])).toEqual({
+      profile: "deepseek",
+      args: ["--model", "x"],
+    });
+    expect(parseClaudeProfileArgs(["--profile=glm", "chat"])).toEqual({ profile: "glm", args: ["chat"] });
+    expect(parseClaudeProfileArgs(["--profile"] ).error).toContain("requires");
+  });
+
+  test("builds a direct profile env from a provider key", () => {
+    const env = buildClaudeDirectEnv(cfg({
+      providers: {
+        deepseek: {
+          adapter: "openai-chat",
+          baseUrl: "https://api.deepseek.com/v1",
+          apiKey: "sk-test",
+          claudeDirect: {
+            enabled: true,
+            baseUrl: "https://api.deepseek.com/anthropic",
+            model: "deepseek-chat",
+          },
+        },
+      },
+    }), "deepseek", {
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:10100",
+      ANTHROPIC_AUTH_TOKEN: "opencodex-proxy",
+      CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: "1",
+    });
+    expect(env.ANTHROPIC_BASE_URL).toBe("https://api.deepseek.com/anthropic");
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe("sk-test");
+    expect(env.ANTHROPIC_MODEL).toBe("deepseek-chat");
+    expect(env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST).toBe("1");
+    expect(env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY).toBeUndefined();
+  });
+
+  test("native profile removes only OpenCodeX-owned loopback routing", () => {
+    const env = buildClaudeNativeEnv({
+      ANTHROPIC_BASE_URL: "http://127.0.0.1:10100",
+      ANTHROPIC_AUTH_TOKEN: "opencodex-proxy",
+      PATH: "test",
+    });
+    expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+    expect(env.PATH).toBe("test");
+  });
+
   test("injects base URL, discovery flag and model slots — NO auth token by default (subscription mode)", () => {
     const env = buildClaudeEnv(cfg({
       claudeCode: { model: "claude-ocx-gemini--gemini-3-pro", smallFastModel: "gemini/gemini-3-flash" },

@@ -6,7 +6,7 @@ import * as z from "zod/v4";
 import { comboConfigIssues } from "./combos/types";
 import { hardenSecretDir, hardenSecretPath } from "./lib/windows-secret-acl";
 import { providerDestinationConfigError } from "./lib/destination-policy";
-import type { OcxConfig } from "./types";
+import type { OcxClaudeDirectConfig, OcxConfig } from "./types";
 
 let _atomicSeq = 0;
 
@@ -330,6 +330,24 @@ export function providerBaseUrlConfigError(baseUrl: string): string | null {
   return null;
 }
 
+export function claudeDirectConfigError(value: unknown): string | null {
+  if (value === undefined) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "claudeDirect must be an object";
+  const direct = value as Partial<OcxClaudeDirectConfig>;
+  if (direct.enabled !== undefined && typeof direct.enabled !== "boolean") return "claudeDirect.enabled must be a boolean";
+  if (direct.baseUrl !== undefined) {
+    if (typeof direct.baseUrl !== "string" || !direct.baseUrl.trim()) return "claudeDirect.baseUrl must be a non-empty string";
+    const baseUrlError = providerBaseUrlConfigError(direct.baseUrl);
+    if (baseUrlError) return `claudeDirect.${baseUrlError}`;
+  }
+  if (direct.enabled === true && !direct.baseUrl?.trim()) return "claudeDirect.baseUrl is required when claudeDirect.enabled is true";
+  if (direct.model !== undefined && (typeof direct.model !== "string" || !direct.model.trim())) return "claudeDirect.model must be a non-empty string";
+  if (direct.authMode !== undefined && direct.authMode !== "auth-token" && direct.authMode !== "api-key") {
+    return "claudeDirect.authMode must be auth-token or api-key";
+  }
+  return null;
+}
+
 export function providerHeadersConfigError(headers: unknown): string | null {
   if (headers === undefined) return null;
   if (!headers || typeof headers !== "object" || Array.isArray(headers)) return "headers must be an object";
@@ -374,6 +392,14 @@ const configSchema = z.object({
       });
     }
     const provider = config.providers[name];
+    const claudeDirectError = claudeDirectConfigError(provider.claudeDirect);
+    if (claudeDirectError) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["providers", name, "claudeDirect"],
+        message: claudeDirectError,
+      });
+    }
     if (Object.hasOwn(provider, "virtualModels")) {
       ctx.addIssue({
         code: "custom",

@@ -69,4 +69,10 @@ export type ProviderUpdatePatch = {
   note?: string;
   disabled?: boolean;
   allowPrivateNetwork?: boolean;
+  claudeDirect?: {
+    enabled?: boolean;
+    baseUrl?: string;
+    model?: string;
+    authMode?: "auth-token" | "api-key";
+  } | null;
 };

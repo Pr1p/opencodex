@@ -40,6 +40,10 @@ export default function ProviderSettings({
   const [authMode, setAuthMode] = useState(initialAuth);
   const [note, setNote] = useState(item.note ?? "");
   const [allowPrivateNetwork, setAllowPrivateNetwork] = useState(item.allowPrivateNetwork ?? false);
+  const [claudeDirectEnabled, setClaudeDirectEnabled] = useState(item.claudeDirect?.enabled === true);
+  const [claudeDirectBaseUrl, setClaudeDirectBaseUrl] = useState(item.claudeDirect?.baseUrl ?? "");
+  const [claudeDirectModel, setClaudeDirectModel] = useState(item.claudeDirect?.model ?? "");
+  const [claudeDirectAuthMode, setClaudeDirectAuthMode] = useState<"auth-token" | "api-key">(item.claudeDirect?.authMode === "api-key" ? "api-key" : "auth-token");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [baseUrlChoices, setBaseUrlChoices] = useState<CatalogPreset["baseUrlChoices"]>();
@@ -54,9 +58,13 @@ export default function ProviderSettings({
     setAuthMode(String(item.authMode ?? (item.keyOptional ? "local" : "key")));
     setNote(item.note ?? "");
     setAllowPrivateNetwork(item.allowPrivateNetwork ?? false);
+    setClaudeDirectEnabled(item.claudeDirect?.enabled === true);
+    setClaudeDirectBaseUrl(item.claudeDirect?.baseUrl ?? "");
+    setClaudeDirectModel(item.claudeDirect?.model ?? "");
+    setClaudeDirectAuthMode(item.claudeDirect?.authMode === "api-key" ? "api-key" : "auth-token");
     setMsg(null);
     queueMicrotask(() => setEndpointChoice(matchChoiceId(baseUrlChoices, item.baseUrl)));
-  }, [item.adapter, item.baseUrl, item.defaultModel, item.authMode, item.keyOptional, item.note, item.allowPrivateNetwork, baseUrlChoices]);
+  }, [item.adapter, item.baseUrl, item.defaultModel, item.authMode, item.keyOptional, item.note, item.allowPrivateNetwork, item.claudeDirect, baseUrlChoices]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -89,7 +97,11 @@ export default function ProviderSettings({
     || defaultModel.trim() !== (item.defaultModel ?? "")
     || authMode !== String(item.authMode ?? (item.keyOptional ? "local" : "key"))
     || note.trim() !== (item.note ?? "")
-    || allowPrivateNetwork !== (item.allowPrivateNetwork ?? false);
+    || allowPrivateNetwork !== (item.allowPrivateNetwork ?? false)
+    || claudeDirectEnabled !== (item.claudeDirect?.enabled === true)
+    || claudeDirectBaseUrl.trim() !== (item.claudeDirect?.baseUrl ?? "")
+    || claudeDirectModel.trim() !== (item.claudeDirect?.model ?? "")
+    || claudeDirectAuthMode !== (item.claudeDirect?.authMode === "api-key" ? "api-key" : "auth-token");
 
   useEffect(() => { onDirtyChange?.(dirty); return () => onDirtyChange?.(false); }, [dirty, onDirtyChange]);
 
@@ -118,8 +130,22 @@ export default function ProviderSettings({
       ? resolvedBaseUrlForChoice(baseUrlChoices, endpointChoice, baseUrl)
       : baseUrl.trim();
     if (!adapter.trim() || !nextBaseUrl) { setMsg({ ok: false, text: t("pws.adapterBaseRequired") }); return false; }
+    if (claudeDirectEnabled && !claudeDirectBaseUrl.trim()) {
+      setMsg({ ok: false, text: t("pws.claudeDirectUrlRequired") });
+      return false;
+    }
     setSaving(true); setMsg(null);
-    const patch: ProviderUpdatePatch = { adapter: adapter.trim(), baseUrl: nextBaseUrl, defaultModel: defaultModel.trim(), authMode, note: note.trim(), allowPrivateNetwork };
+    const patch: ProviderUpdatePatch = {
+      adapter: adapter.trim(),
+      baseUrl: nextBaseUrl,
+      defaultModel: defaultModel.trim(),
+      authMode,
+      note: note.trim(),
+      allowPrivateNetwork,
+      claudeDirect: (claudeDirectEnabled || !!item.claudeDirect)
+        ? { enabled: claudeDirectEnabled, baseUrl: claudeDirectBaseUrl.trim(), model: claudeDirectModel.trim(), authMode: claudeDirectAuthMode }
+        : undefined,
+    };
     const res = await onUpdateProvider(item.name, patch);
     setSaving(false);
     setMsg(res.ok ? { ok: true, text: t("pws.settingsSaved") } : { ok: false, text: res.error || t("prov.saveFailed") });
@@ -139,7 +165,12 @@ export default function ProviderSettings({
   const discard = () => {
     setAdapter(item.adapter); setBaseUrl(item.baseUrl);
     setDefaultModel(item.defaultModel ?? ""); setAuthMode(initialAuth);
-    setNote(item.note ?? ""); setAllowPrivateNetwork(item.allowPrivateNetwork ?? false); setMsg(null);
+    setNote(item.note ?? ""); setAllowPrivateNetwork(item.allowPrivateNetwork ?? false);
+    setClaudeDirectEnabled(item.claudeDirect?.enabled === true);
+    setClaudeDirectBaseUrl(item.claudeDirect?.baseUrl ?? "");
+    setClaudeDirectModel(item.claudeDirect?.model ?? "");
+    setClaudeDirectAuthMode(item.claudeDirect?.authMode === "api-key" ? "api-key" : "auth-token");
+    setMsg(null);
     setEndpointChoice(matchChoiceId(baseUrlChoices, item.baseUrl));
   };
 
@@ -227,6 +258,24 @@ export default function ProviderSettings({
         <input type="checkbox" checked={allowPrivateNetwork} onChange={e => setAllowPrivateNetwork(e.target.checked)} />
         <span className="pwi-settings-label">{t("pws.allowPrivateNetwork")}</span>
       </label>
+      <div className="pwi-settings-field" style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+        <span className="pwi-settings-label">{t("pws.claudeDirectTitle")}</span>
+        <span className="muted" style={{ fontSize: 12 }}>{t("pws.claudeDirectDesc", { name: item.name })}</span>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+          <input type="checkbox" checked={claudeDirectEnabled} onChange={e => setClaudeDirectEnabled(e.target.checked)} />
+          <span>{t("pws.claudeDirectEnable")}</span>
+        </label>
+        {claudeDirectEnabled && (
+          <>
+            <input className="input" value={claudeDirectBaseUrl} onChange={e => setClaudeDirectBaseUrl(e.target.value)} placeholder={t("pws.claudeDirectUrl")} style={{ marginTop: 8 }} aria-label={t("pws.claudeDirectUrl")} />
+            <input className="input" value={claudeDirectModel} onChange={e => setClaudeDirectModel(e.target.value)} placeholder={t("pws.claudeDirectModel")} style={{ marginTop: 8 }} aria-label={t("pws.claudeDirectModel")} />
+            <select className="input" value={claudeDirectAuthMode} onChange={e => setClaudeDirectAuthMode(e.target.value as "auth-token" | "api-key")} style={{ marginTop: 8 }}>
+              <option value="auth-token">{t("pws.claudeDirectAuthToken")}</option>
+              <option value="api-key">{t("pws.claudeDirectApiKey")}</option>
+            </select>
+          </>
+        )}
+      </div>
       {dirty && (
         <div className="pwi-settings-sticky-bar">
           <span className="muted">{t("pws.settingsUnsavedBar")}</span>

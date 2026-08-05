@@ -1,6 +1,6 @@
 import type { TKey } from "./en";
 
-export const ko: Record<TKey, string> = {
+export const ko: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "대시보드",
   "nav.providers": "프로바이더",

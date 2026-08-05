@@ -981,6 +981,14 @@ export const en = {
   "cws.err.invalidStickyLimit": "Sticky successes must be an integer from 1 to 100.",
   "cws.err.invalidWeight": "Each round-robin weight must be an integer from 1 to 10000.",
   "cws.err.noEnabledTarget": "At least one target must use an enabled provider.",
+  "pws.claudeDirectTitle": "Claude Code direct connection",
+  "pws.claudeDirectDesc": "Use this provider with ocx claude --profile {name}. The endpoint must accept Anthropic Messages requests.",
+  "pws.claudeDirectEnable": "Enable Claude Code direct profile",
+  "pws.claudeDirectUrl": "Claude-compatible base URL",
+  "pws.claudeDirectModel": "Claude model id (optional)",
+  "pws.claudeDirectAuthToken": "Use ANTHROPIC_AUTH_TOKEN",
+  "pws.claudeDirectApiKey": "Use ANTHROPIC_API_KEY",
+  "pws.claudeDirectUrlRequired": "Claude direct requires an Anthropic-compatible base URL.",
 } as const;
 
 export type TKey = keyof typeof en;

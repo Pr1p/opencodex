@@ -1,6 +1,6 @@
 import type { TKey } from "./en";
 
-export const zh: Record<TKey, string> = {
+export const zh: Partial<Record<TKey, string>> = {
   // sidebar / nav / common
   "nav.dashboard": "仪表盘",
   "nav.providers": "提供方",

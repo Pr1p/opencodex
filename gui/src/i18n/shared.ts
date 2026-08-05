@@ -8,7 +8,7 @@ import { ru } from "./ru";
 export type Locale = "en" | "de" | "ko" | "zh" | "ru";
 export type { TKey };
 
-export const DICTS: Record<Locale, Record<TKey, string>> = { en, de, ko, zh, ru };
+export const DICTS: Record<Locale, Partial<Record<TKey, string>>> = { en, de, ko, zh, ru };
 
 export const LOCALES: { code: Locale; name: string; htmlLang: string }[] = [
   { code: "en", name: "English", htmlLang: "en" },

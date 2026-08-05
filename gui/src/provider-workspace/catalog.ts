@@ -42,6 +42,12 @@ export interface WorkspaceProvider {
   disabled?: boolean;
   note?: string;
   allowPrivateNetwork?: boolean;
+  claudeDirect?: {
+    enabled?: boolean;
+    baseUrl?: string;
+    model?: string;
+    authMode?: "auth-token" | "api-key" | string;
+  };
 }
 
 /** Three-way pricing/ownership tier for a ready provider row. */

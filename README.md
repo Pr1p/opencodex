@@ -237,6 +237,39 @@ next Codex session. opencodex keeps these behaviors:
 - **Runs in the background.** Install as a system service (launchd / systemd / Task Scheduler) and forget about it. On macOS/Linux the proxy starts at login; on Windows the default Task Scheduler backend starts at logon (windowless), or use `ocx service install --native` for a real Windows service that starts at boot.
 - **Clean exit, zero residue.** `ocx stop` (or the dashboard's Stop button) shuts down the proxy, stops the background service if one is installed, and restores Codex to its original configuration. Plain `codex` works exactly as it did before — no leftover config, no orphaned processes.
 
+## Fork-specific changes
+
+This fork keeps Codex's existing `/v1/responses` proxy path and adds provider-scoped direct profiles for Claude Code:
+
+- Configure Claude Code direct access in **Providers → Workspace → provider → Settings** with an enable switch, Anthropic-compatible `baseUrl`, model, and auth mode.
+- `ocx claude --profile <provider>` launches Claude Code directly against that provider's Anthropic Messages endpoint, bypassing the Codex Responses translation path while still reusing the provider API key managed by OpenCodeX.
+- Plain `ocx claude` keeps the original proxy, model discovery, and routing behavior.
+- `ocx claude --profile native` / `subscription` explicitly uses Claude Code's own subscription authentication without the OpenCodeX proxy.
+
+Example (DeepSeek):
+
+```json
+{
+  "providers": {
+    "deepseek": {
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "claudeDirect": {
+        "enabled": true,
+        "baseUrl": "https://api.deepseek.com/anthropic",
+        "model": "deepseek-chat",
+        "authMode": "auth-token"
+      }
+    }
+  }
+}
+```
+
+Then run:
+
+```bash
+ocx claude --profile deepseek
+```
+
 ## Providers & adapters
 
 | Provider | Adapter | Auth |

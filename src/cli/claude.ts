@@ -7,7 +7,7 @@
  * loopback opencodex base URL points at a different proxy port.
  */
 import { spawn } from "node:child_process";
-import { loadConfig } from "../config";
+import { loadConfig, resolveEnvValue } from "../config";
 import { injectClaudeAgentDefs } from "../claude/agents-inject";
 import { effectiveModelEnv, resolveAutoContext } from "../claude/context-windows";
 import { refreshGatewayModelCacheFromProxy } from "../claude/gateway-cache";
@@ -17,6 +17,72 @@ import type { OcxConfig } from "../types";
 
 export interface ClaudeLaunchEnv {
   [key: string]: string | undefined;
+}
+
+export interface ClaudeProfileArgs {
+  profile?: string;
+  args: string[];
+  error?: string;
+}
+
+export function parseClaudeProfileArgs(args: string[]): ClaudeProfileArgs {
+  const childArgs: string[] = [];
+  let profile: string | undefined;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]!;
+    if (arg === "--profile") {
+      const value = args[index + 1]?.trim();
+      if (!value || value.startsWith("-")) return { args: childArgs, error: "--profile requires a provider name" };
+      if (profile) return { args: childArgs, error: "--profile may only be specified once" };
+      profile = value;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--profile=")) {
+      const value = arg.slice("--profile=".length).trim();
+      if (!value) return { args: childArgs, error: "--profile requires a provider name" };
+      if (profile) return { args: childArgs, error: "--profile may only be specified once" };
+      profile = value;
+      continue;
+    }
+    childArgs.push(arg);
+  }
+  return { profile, args: childArgs };
+}
+
+export function buildClaudeDirectEnv(config: OcxConfig, providerName: string, base: ClaudeLaunchEnv): ClaudeLaunchEnv {
+  const provider = config.providers[providerName];
+  if (!provider) throw new Error(`Unknown Claude profile "${providerName}". Configure it under the provider settings first.`);
+  const direct = provider.claudeDirect;
+  if (!direct?.enabled) throw new Error(`Claude direct profile "${providerName}" is not enabled.`);
+  if (!direct.baseUrl) throw new Error(`Claude direct profile "${providerName}" has no base URL.`);
+  const apiKey = resolveEnvValue(provider.apiKey);
+  if (!apiKey) throw new Error(`Claude direct profile "${providerName}" requires the provider API key.`);
+
+  const env: ClaudeLaunchEnv = { ...base };
+  env.ANTHROPIC_BASE_URL = direct.baseUrl;
+  delete env.ANTHROPIC_AUTH_TOKEN;
+  delete env.ANTHROPIC_API_KEY;
+  if (direct.authMode === "api-key") env.ANTHROPIC_API_KEY = apiKey;
+  else env.ANTHROPIC_AUTH_TOKEN = apiKey;
+  if (direct.model) env.ANTHROPIC_MODEL = direct.model;
+  env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST = "1";
+  delete env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY;
+  return env;
+}
+
+export function buildClaudeNativeEnv(base: ClaudeLaunchEnv): ClaudeLaunchEnv {
+  const env: ClaudeLaunchEnv = { ...base };
+  if (env.ANTHROPIC_AUTH_TOKEN === "opencodex-proxy") delete env.ANTHROPIC_AUTH_TOKEN;
+  if (env.ANTHROPIC_BASE_URL) {
+    try {
+      const parsed = new URL(env.ANTHROPIC_BASE_URL);
+      if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") delete env.ANTHROPIC_BASE_URL;
+    } catch { /* preserve an explicit non-URL value */ }
+  }
+  delete env.CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST;
+  delete env.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY;
+  return env;
 }
 
 /**
@@ -168,11 +234,44 @@ export function claudeNotFoundHint(
   return platform === "win32" && code === 9009 && !signal ? CLAUDE_INSTALL_HINT : null;
 }
 
+async function spawnClaude(args: string[], env: ClaudeLaunchEnv): Promise<number> {
+  return await new Promise<number>(resolve => {
+    const inv = commandInvocation("claude", args);
+    const child = spawn(inv.file, inv.args, { stdio: "inherit", env: env as NodeJS.ProcessEnv, ...inv.options });
+    child.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code === "ENOENT") console.error(CLAUDE_INSTALL_HINT);
+      else console.error(`Failed to launch claude: ${err.message}`);
+      resolve(1);
+    });
+    child.on("exit", (code, signal) => {
+      const hint = claudeNotFoundHint(code, signal);
+      if (hint) console.error(hint);
+      resolve(signal ? 1 : code ?? 0);
+    });
+  });
+}
+
 export async function cmdClaude(args: string[]): Promise<number> {
+  const parsedArgs = parseClaudeProfileArgs(args);
+  if (parsedArgs.error) {
+    console.error(parsedArgs.error);
+    return 1;
+  }
   const config = loadConfig();
   if (config.claudeCode?.enabled === false) {
     console.error("Claude inbound is disabled (config.claudeCode.enabled=false — flip the Claude ON toggle in the GUI or edit config).");
     return 1;
+  }
+  if (parsedArgs.profile === "native" || parsedArgs.profile === "subscription") {
+    return await spawnClaude(parsedArgs.args, buildClaudeNativeEnv(process.env));
+  }
+  if (parsedArgs.profile) {
+    try {
+      return await spawnClaude(parsedArgs.args, buildClaudeDirectEnv(config, parsedArgs.profile, process.env));
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      return 1;
+    }
   }
   const port = await ensureProxyForClaude();
   if (!port) {
@@ -203,7 +302,7 @@ export async function cmdClaude(args: string[]): Promise<number> {
     console.error(`⚠ Claude agent definitions could not be synced: ${message}`);
   }
   return await new Promise<number>(resolve => {
-    const inv = commandInvocation("claude", args);
+    const inv = commandInvocation("claude", parsedArgs.args);
     const child = spawn(inv.file, inv.args, { stdio: "inherit", env: env as NodeJS.ProcessEnv, ...inv.options });
     child.on("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "ENOENT") {

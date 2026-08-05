@@ -1,6 +1,6 @@
 import type { TKey } from "./en";
 
-export const ru: Record<TKey, string> = {
+export const ru: Partial<Record<TKey, string>> = {
 // English — source of truth. Its keys define the TKey type; ko/zh must match (compile-checked).
 // Strings with {cmd} render a <code> chip via <Trans>; {var} are plain interpolations.
   // sidebar / nav / common

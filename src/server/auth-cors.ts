@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { formatErrorResponse } from "../bridge";
 import {
   codexAutoStartEnabled,
+  claudeDirectConfigError,
   positiveIntegerRecordConfigError,
   providerBaseUrlConfigError,
   providerHeadersConfigError,
@@ -218,6 +219,8 @@ export function providerManagementConfigError(name: unknown, provider: unknown):
     return `provider ${name} must not include codexAccountMode`;
   }
   const typed = provider as unknown as OcxProviderConfig;
+  const claudeDirectError = claudeDirectConfigError(typed.claudeDirect);
+  if (claudeDirectError) return `provider ${name} ${claudeDirectError}`;
   const baseUrlError = providerBaseUrlConfigError(typed.baseUrl);
   if (baseUrlError) return `provider ${name} ${baseUrlError}`;
   const destinationError = providerDestinationConfigError(name, typed);
@@ -279,6 +282,14 @@ export function safeConfigDTO(config: OcxConfig): unknown {
       hasApiKey: !!provider.apiKey,
       hasHeaders: !!provider.headers && Object.keys(provider.headers).length > 0,
     };
+    if (provider.claudeDirect) {
+      dto.claudeDirect = {
+        enabled: provider.claudeDirect.enabled === true,
+        baseUrl: provider.claudeDirect.baseUrl ? publicProviderBaseUrl(provider.claudeDirect.baseUrl) : undefined,
+        model: provider.claudeDirect.model,
+        authMode: provider.claudeDirect.authMode,
+      };
+    }
     for (const key of [
       "defaultModel",
       "disabled",

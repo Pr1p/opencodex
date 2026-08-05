@@ -119,6 +119,39 @@ npm 警告里给出的缩写命令缺少包名，会把当前目录重新安装�
 - **后台运行。** 安装为系统服务（launchd / systemd / Task Scheduler）后开机自启，无需操心。
 - **干净退出，零残留。** `ocx stop`（或仪表盘的 Stop 按钮）会关闭代理、停止已安装的后台服务，并将 Codex 恢复为原始配置。之后 `codex` 就像从未安装过 opencodex 一样工作 —— 无残留配置，无僵尸进程。
 
+## 本 Fork 的特殊处理
+
+本 Fork 保留 Codex 原有的 `/v1/responses` 代理链路，同时为 Claude Code 增加了按 provider 直连的 profile：
+
+- 在 **Providers → Workspace → provider → Settings** 中配置 Claude Code 直连开关、Anthropic 兼容 `baseUrl`、模型和认证方式。
+- 使用 `ocx claude --profile <provider>` 时，Claude Code 直接请求该 provider 的 Anthropic Messages 端点，不经过 Codex Responses 协议转换；provider 原有的 API key 仍由 OpenCodeX 管理。
+- 不带 profile 的 `ocx claude` 行为保持不变，仍使用原有代理、模型发现和路由功能。
+- `ocx claude --profile native` / `subscription` 可显式使用 Claude Code 自己的订阅认证，不走 OpenCodeX 代理。
+
+示例（以 DeepSeek 为例）：
+
+```json
+{
+  "providers": {
+    "deepseek": {
+      "apiKey": "${DEEPSEEK_API_KEY}",
+      "claudeDirect": {
+        "enabled": true,
+        "baseUrl": "https://api.deepseek.com/anthropic",
+        "model": "deepseek-chat",
+        "authMode": "auth-token"
+      }
+    }
+  }
+}
+```
+
+然后运行：
+
+```bash
+ocx claude --profile deepseek
+```
+
 ## 添加 Provider
 
 最简单的方式：用 Web 仪表盘。
