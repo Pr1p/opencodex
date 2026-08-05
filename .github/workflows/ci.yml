@@ -70,7 +70,28 @@ jobs:
         run: bun x tsc --noEmit
 
       - name: Test
-        run: bun test --isolate tests
+        shell: pwsh
+        run: |
+          $logFile = Join-Path $env:RUNNER_TEMP "opencodex-bun-test-$env:RUNNER_OS.log"
+
+          & bun test --isolate tests 2>&1 | Tee-Object -FilePath $logFile
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -eq 0) {
+            exit 0
+          }
+
+          # Bun can occasionally crash internally on the Windows runner after
+          # a long full-suite run. Retry only that runtime failure; ordinary
+          # assertion or type errors still fail immediately.
+          $bunCrash = Select-String -Path $logFile -Pattern "Bun has crashed|Internal assertion failure" -Quiet
+          if ($env:RUNNER_OS -eq "Windows" -and $bunCrash) {
+            Write-Host "Bun crashed internally on Windows; retrying the test suite once."
+            Start-Sleep -Seconds 5
+            & bun test --isolate tests
+            exit $LASTEXITCODE
+          }
+
+          exit $exitCode
 
       - name: Privacy scan
         run: bun run privacy:scan
