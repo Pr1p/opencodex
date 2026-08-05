@@ -246,17 +246,17 @@ This fork keeps Codex's existing `/v1/responses` proxy path and adds provider-sc
 - Plain `ocx claude` keeps the original proxy, model discovery, and routing behavior.
 - `ocx claude --profile native` / `subscription` explicitly uses Claude Code's own subscription authentication without the OpenCodeX proxy.
 
-Example (DeepSeek):
+Generic configuration template (replace `my-provider`, the endpoint, and the model):
 
 ```json
 {
   "providers": {
-    "deepseek": {
-      "apiKey": "${DEEPSEEK_API_KEY}",
+    "my-provider": {
+      "apiKey": "${MY_PROVIDER_API_KEY}",
       "claudeDirect": {
         "enabled": true,
-        "baseUrl": "https://api.deepseek.com/anthropic",
-        "model": "deepseek-chat",
+        "baseUrl": "https://api.example.com/anthropic",
+        "model": "your-model-id",
         "authMode": "auth-token"
       }
     }
@@ -267,8 +267,10 @@ Example (DeepSeek):
 Then run:
 
 ```bash
-ocx claude --profile deepseek
+ocx claude --profile my-provider
 ```
+
+`baseUrl` must point to an Anthropic Messages-compatible endpoint; `authMode` can be `auth-token` or `api-key`. Any provider that exposes this compatible interface can reuse the profile mechanism without provider-specific code changes.
 
 ## Providers & adapters
 

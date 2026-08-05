@@ -128,17 +128,17 @@ npm 警告里给出的缩写命令缺少包名，会把当前目录重新安装�
 - 不带 profile 的 `ocx claude` 行为保持不变，仍使用原有代理、模型发现和路由功能。
 - `ocx claude --profile native` / `subscription` 可显式使用 Claude Code 自己的订阅认证，不走 OpenCodeX 代理。
 
-示例（以 DeepSeek 为例）：
+通用配置模板（将 `my-provider`、端点和模型替换为你的 provider）：
 
 ```json
 {
   "providers": {
-    "deepseek": {
-      "apiKey": "${DEEPSEEK_API_KEY}",
+    "my-provider": {
+      "apiKey": "${MY_PROVIDER_API_KEY}",
       "claudeDirect": {
         "enabled": true,
-        "baseUrl": "https://api.deepseek.com/anthropic",
-        "model": "deepseek-chat",
+        "baseUrl": "https://api.example.com/anthropic",
+        "model": "your-model-id",
         "authMode": "auth-token"
       }
     }
@@ -149,8 +149,10 @@ npm 警告里给出的缩写命令缺少包名，会把当前目录重新安装�
 然后运行：
 
 ```bash
-ocx claude --profile deepseek
+ocx claude --profile my-provider
 ```
+
+`baseUrl` 必须指向支持 Anthropic Messages API 的兼容端点；`authMode` 可选 `auth-token` 或 `api-key`。因此只要 provider 能提供兼容的 Anthropic 接口，就可以复用这套 profile 机制，不需要为每个 provider 单独改代码。
 
 ## 添加 Provider
 
